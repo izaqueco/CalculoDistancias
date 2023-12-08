@@ -1,0 +1,125 @@
+import networkx as nx
+import folium
+from folium import plugins
+import datetime
+
+
+# Definindo as cidades e suas posições geográficas
+cidades = {
+    "Curitiba": {"CD": "Curitiba/PR", "pos": (-25.4284, -49.2733)},
+    "Londrina": {"CD": "Londrina/PR", "pos": (-23.3105, -51.1620)},
+    "Foz do Iguaçu": {"CD": "Foz do Iguaçu/PR", "pos": (-25.5478, -54.5882)},
+    "União da Vitória": {"CD": "União da Vitória/PR", "pos": (-26.2286, -51.0788)},
+    "Joinville": {"CD": "Joinville/SC", "pos": (-26.3032, -48.8484)},
+    "Chapecó": {"CD": "Chapecó/SC", "pos": (-27.1000, -52.6158)},
+    "Porto Alegre": {"CD": "Porto Alegre/RS", "pos": (-30.0346, -51.2177)},
+    "Uruguaiana": {"CD": "Uruguaiana/RS", "pos": (-29.7547, -57.0883)},
+    "Pelotas": {"CD": "Pelotas/RS", "pos": (-31.7692, -52.3415)},
+}
+
+# Criando um grafo ponderado
+G = nx.Graph()
+
+# Adicionando nós e arestas ao grafo
+for cidade, info in cidades.items():
+    G.add_node(cidade, CD=info["CD"], pos=info["pos"])
+
+# Adicionando arestas com custos
+edges = [
+   ("Curitiba", "Londrina", 380),
+   ("Curitiba", "União da Vitória", 220),
+   ("Londrina", "Foz do Iguaçu", 580),
+   ("União da Vitória", "Foz do Iguaçu", 360),
+   ("Joinville", "Chapecó", 550),
+   ("Porto Alegre", "Uruguaiana", 640),
+   ("Porto Alegre", "Pelotas", 250),
+   ("Uruguaiana", "Pelotas", 480),
+]
+
+
+for edge in edges:
+    G.add_edge(edge[0], edge[1], distance=edge[2])
+
+# Função para calcular o menor caminho
+def calcular_menor_caminho_regras(grafo, origem, destino):
+    try:
+        path = nx.shortest_path(grafo, origem, destino, weight="distance")
+        cost = nx.shortest_path_length(grafo, origem, destino, weight="distance")
+        return path, cost
+    except nx.NetworkXNoPath:
+        return None
+
+# Função para exibir o mapa com o caminho
+def exibir_mapa(caminho, cidades):
+    mapa = folium.Map(location=cidades[caminho[0]]["pos"], zoom_start=6)
+    for cidade in cidades:
+        folium.Marker(
+            location=cidades[cidade]["pos"],
+            popup=cidades[cidade]["CD"],
+            icon=folium.Icon(color="blue" if cidade in caminho else "red"),
+        ).add_to(mapa)
+
+    # Adicionando o caminho ao mapa
+    folium.PolyLine(
+        [cidades[cidade]["pos"] for cidade in caminho],
+        color="green",
+        weight=2.5,
+        opacity=1,
+    ).add_to(mapa)
+
+    # Adicionando plugin de visualização do caminho
+    plugins.ScrollZoomToggler().add_to(mapa)
+    plugins.MarkerCluster().add_to(mapa)
+
+    return mapa
+
+# Função para calcular a estimativa de tempo
+def calcular_estimativa_tempo(distancia):
+    velocidade_media = 80  # assumindo uma velocidade média de 80 km/h
+    tempo_em_horas = distancia / velocidade_media
+    return tempo_em_horas
+
+# Solicitar origem e destino ao usuário
+origem = input("Digite a cidade de origem: ")
+destino = input("Digite a cidade de destino: ")
+
+
+
+caminho_custo = calcular_menor_caminho_regras(G, origem, destino)
+
+
+# Calculando o custo total
+if caminho_custo:
+    caminho, custo = caminho_custo
+
+
+
+    distancia = custo  # Use a variável custo em vez de calcular a distância novamente
+    custo_total = custo * 20  # custo por quilômetro
+    dias_viagem = distancia // 500  # cada dia viagem de 500 km
+
+    if dias_viagem == 0:
+        dias_viagem = 1  # pelo menos um dia de viagem
+
+    custo_total += dias_viagem * 500 * 20  # considerando o limite diário de 500 km
+
+    estimativa_tempo = calcular_estimativa_tempo(distancia)
+
+    print(f"Menor caminho de {origem} para {destino}: {caminho}")
+    print(f"Distância percorrida: {distancia} km")
+    print(f"Estimativa de tempo: {estimativa_tempo:.2f} horas")
+    print(f"Custo total: R${custo_total:.2f}")
+
+    # Adicionando data e hora de chegada
+    data_hora_chegada = datetime.datetime.now() + datetime.timedelta(hours=estimativa_tempo)
+    print(f"Data e hora de chegada: {data_hora_chegada}")
+
+    # Criando o mapa
+    mapa = exibir_mapa(caminho, cidades)
+
+    # Salvando o mapa como arquivo HTML
+    mapa.save("mapa.html")
+
+    print("O mapa foi salvo como 'mapa.html'. Abra-o em seu navegador para visualizar.")
+else:
+    print(f"Não há caminho de {origem} para {destino}.")
